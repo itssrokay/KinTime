@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Needed only for opt-in Android 17 tests that connect to host emulators. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <application android:networkSecurityConfig="@xml/debug_network_security" />
+</manifest>

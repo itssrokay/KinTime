@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function member(familyId) {
+      return signedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+    }
+    function validInvite(code, familyId) {
+      let invite = get(/databases/$(database)/documents/invites/$(code));
+      return code is string && code.matches('[a-f0-9]{32}')
+        && invite.data.familyId == familyId && invite.data.expiresAt > request.time
+        && exists(/databases/$(database)/documents/families/$(familyId)/members/$(invite.data.createdBy));
+    }
+    match /families/{familyId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 60
+        && request.resource.data.createdAt == request.time;
+      allow read: if member(familyId);
+      // This MVP has no administrator override of another person's statistics.
+      allow update, delete: if false;
+      match /members/{userId} {
+        allow get: if member(familyId) || (signedIn() && userId == request.auth.uid);
+        allow list: if member(familyId);
+        allow create: if signedIn() && userId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['name', 'joinedAt', 'inviteCode'])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
+          && request.resource.data.joinedAt == request.time
+          && ((!exists(/databases/$(database)/documents/families/$(familyId)) && getAfter(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid)
+              || validInvite(request.resource.data.inviteCode, familyId));
+        allow update: if signedIn() && userId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40;
+        allow delete: if signedIn() && userId == request.auth.uid;
+      }
+      match /summaries/{summaryId} {
+        allow read: if member(familyId);
+        function validSummary() {
+          let d = request.resource.data;
+          return d.keys().hasAll(['userId', 'deviceId', 'day', 'zoneId', 'screenMillis', 'views', 'shortMillis', 'collectedAt', 'updatedAt', 'apps', 'detectorVersion'])
+            && d.keys().hasOnly(['userId', 'deviceId', 'day', 'zoneId', 'screenMillis', 'views', 'shortMillis', 'collectedAt', 'updatedAt', 'apps', 'detectorVersion'])
+            && d.userId == request.auth.uid && d.deviceId is string && d.deviceId.matches('[a-f0-9-]{36}')
+            && d.day is string && d.day.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+            && summaryId == d.userId + '_' + d.deviceId + '_' + d.day
+            && d.zoneId is string && d.zoneId.size() <= 80
+            && d.screenMillis is int && d.screenMillis >= 0 && d.screenMillis <= 90000000
+            && d.shortMillis is int && d.shortMillis >= 0 && d.shortMillis <= 90000000
+            && d.views is int && d.views >= 0 && d.views <= 100000
+            && d.collectedAt is timestamp && d.collectedAt <= request.time
+            && d.updatedAt == request.time && d.apps is map && d.apps.size() <= 40
+            && d.detectorVersion == 1;
+        }
+        allow create: if member(familyId) && validSummary();
+        allow update: if member(familyId) && resource.data.userId == request.auth.uid
+          && (validSummary() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['apps']) && request.resource.data.apps == {}));
+        allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      }
+    }
+    match /invites/{code} {
+      allow get: if signedIn() && resource.data.expiresAt > request.time;
+      allow list: if false;
+      allow create: if signedIn() && code.matches('[a-f0-9]{32}')
+        && request.resource.data.keys().hasOnly(['familyId', 'createdBy', 'createdAt', 'expiresAt'])
+        && request.resource.data.createdBy == request.auth.uid && member(request.resource.data.familyId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(25, 'h');
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+    }
+  }
+}

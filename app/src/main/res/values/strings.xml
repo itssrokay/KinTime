@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">KinTime</string>
+    <string name="accessibility_label">KinTime · short-video estimates</string>
+    <string name="accessibility_description">Optional: recognise Reels and Shorts screens in Instagram and YouTube to estimate views and time. Interface information is processed on this phone. Only counts and durations are stored; selected daily statistics are shared with your family only when you enable sharing. You can turn this service off at any time.</string>
+</resources>

@@ -1,0 +1,22 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <queries>
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+        <package android:name="com.instagram.android" />
+        <package android:name="com.google.android.youtube" />
+    </queries>
+    <application android:name=".KinTimeApp" android:label="@string/app_name" android:icon="@drawable/ic_launcher"
+        android:theme="@style/Theme.KinTime" android:allowBackup="false" android:supportsRtl="true"
+        android:usesCleartextTraffic="false" android:dataExtractionRules="@xml/backup_rules">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+        </activity>
+        <service android:name=".tracking.ShortVideoService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true" android:label="@string/accessibility_label">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/short_video_service" />
+        </service>
+    </application>
+</manifest>
