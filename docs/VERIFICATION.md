@@ -1,16 +1,14 @@
 # Verification — 25 October 2026
 
-## Version 0.2.0: activity logging
+## Version 0.2.1
 
-- Android debug APK builds successfully; Android lint reports zero errors.
-- **16 JVM tests passed**, including 6 new tests for activity duration formatting, midnight/DST splitting, range totals, and invalid/future manual entries.
-- **5 Android tests passed** on Android 17: the two existing onboarding/disclosure tests, two new activity-log UI tests (manual entry, timer start/stop and activity recreation), and a non-destructive database migration test. The migration test preserves existing usage rows and checks that only one running timer is allowed.
-- Schema 1 → 2 adds `time_entries` without deleting existing screen-time tables. Exported schemas for both versions are included.
-- The two-account Authentication/Firestore emulator sync integration test also passed with the version 2 database.
-- Captured the new timer and grouped-history screens after manually starting/stopping an example activity on the Android 17 emulator.
-- The APK is still a development build; actual family devices, Samsung background behavior, and Instagram/YouTube recognition need the household trial below.
-
-The initial screen-time/security verification is retained below; manual activity descriptions/projects are local only and do not change the family cloud schema or rules.
+- Removes the manual timer and logging screen, related code, and screenshots.
+- Restores the Today, Family, and Tracking navigation.
+- Database schema 3 retains the original screen-time tables. Upgrade migrations cover both earlier schemas and remove the obsolete manual-entry table from schema 2.
+- APK build and Android lint passed with zero lint errors.
+- **10 JVM tests passed.**
+- **4 Android tests passed** on Android 17: onboarding/disclosure checks (including absence of the Log tab) and database upgrades from both schema 1 and schema 2. The migrations preserve usage and short-video rows, and remove the obsolete table from schema 2.
+- Verified that the removed logging classes are absent from the APK.
 
 ## Initial screen-time and family-sharing verification
 

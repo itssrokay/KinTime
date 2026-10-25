@@ -13,9 +13,6 @@ import app.kintime.family.ui.KinTimeRoot
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.time.LocalDate
-import java.time.ZoneId
-import java.util.UUID
-import app.kintime.family.core.TimeLogMath
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,7 +45,6 @@ class DashboardModel(application: Application) : AndroidViewModel(application) {
     val apps = selectedDay.flatMapLatest { container.dao.watchApps(it) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val videos = selectedDay.flatMapLatest { container.dao.watchVideos(it) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val week = container.dao.watchWeek().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val timeEntries = container.dao.watchTimeEntries().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val hasAccess = MutableStateFlow(false)
     val refreshing = MutableStateFlow(false)
     val error = MutableStateFlow<String?>(null)
@@ -74,22 +70,4 @@ class DashboardModel(application: Application) : AndroidViewModel(application) {
         else -> runCatching { getApplication<Application>().packageManager.let { it.getApplicationLabel(it.getApplicationInfo(pkg, 0)).toString() } }.getOrDefault(pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() })
     }
     fun runAction(block: suspend () -> Unit) { viewModelScope.launch(Dispatchers.IO) { block() } }
-    private fun logAction(block: suspend () -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try { block() }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { error.value = e.localizedMessage ?: "Could not save your time entry." }
-        }
-    }
-    fun startTimer(description: String, project: String) = logAction {
-        container.dao.startTimeEntry(TimeEntry(UUID.randomUUID().toString(), description.trim().take(160), project.trim().take(60),
-            System.currentTimeMillis(), null, ZoneId.systemDefault().id, 1))
-    }
-    fun stopTimer() = logAction { container.dao.stopTimeEntry(System.currentTimeMillis()) }
-    fun saveEntry(id: String?, description: String, project: String, start: Long, end: Long) = logAction {
-        TimeLogMath.validate(start, end, System.currentTimeMillis())
-        if (id == null) container.dao.insertTimeEntry(TimeEntry(UUID.randomUUID().toString(), description.trim().take(160), project.trim().take(60), start, end, ZoneId.systemDefault().id))
-        else container.dao.editTimeEntry(id, description.trim().take(160), project.trim().take(60), start, end)
-    }
-    fun deleteEntry(id: String) = logAction { container.dao.deleteTimeEntry(id) }
 }

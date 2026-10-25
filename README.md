@@ -6,32 +6,18 @@ A native Android app for a family to understand screen time together. Supports *
 
 **[Download KinTime for Android (APK)](https://github.com/itssrokay/KinTime/releases/latest/download/KinTime-android.apk)** · [Releases and release notes](https://github.com/itssrokay/KinTime/releases) · [SHA-256 checksum](https://github.com/itssrokay/KinTime/releases/latest/download/SHA256SUMS)
 
-Latest version: **0.2.0**. This is a development build signed with the Android debug certificate. Download the APK on an Android 15+ phone and allow installation from your browser if prompted. The **Log** tab works immediately, offline, with no Usage Access or accessibility permission. Automatic screen-time tracking has its own setup in **Tracking**. Family sharing still needs Firebase configuration below.
+Latest version: **0.2.1**. This is a development build signed with the Android debug certificate. Download the APK on an Android 15+ phone and allow installation from your browser if prompted. Automatic screen-time tracking has its own setup in **Tracking**. Family sharing still needs Firebase configuration below.
 
 ## What works in this build
 
 - **Today:** daily phone time, app breakdowns, a seven-day date selector, a personal goal, and optional short-video estimates.
-- **Log:** Clockify-inspired activity logging with a task description, optional project/category, start/stop timer, manual time entries, daily/weekly totals and grouped history, plus continue/edit/delete actions. Running timers survive leaving or reopening the app. Activity logs are local and are separate from automatic screen-time and shared family totals.
 - **Tracking:** Usage Access setup, explicit accessibility disclosure, profile/goal settings, Samsung troubleshooting, local-history deletion.
 - **Family:** Email/Password accounts, create/join a family, expiring invitation codes, live daily snapshots, optional app breakdowns, pause sharing, and leave/sign out with removal of shared statistics.
 - Room database, offline local collection, periodic WorkManager jobs, retry-safe per-device daily cloud snapshots, and Firestore access rules.
 
 The app runs without Firebase configuration. It shows a setup explanation in the Family tab, rather than sample people or fabricated statistics. **Cross-phone sharing requires the one-time setup in [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md).**
 
-Actual emulator screenshots: [Time log](docs/screenshots/time-log.png), [Today](docs/screenshots/today-tracking.png), [app breakdown](docs/screenshots/app-breakdown.png), [Family setup](docs/screenshots/family-setup.png), [Tracking](docs/screenshots/tracking.png). See [verification results](docs/VERIFICATION.md).
-
-<img src="docs/screenshots/time-log.png" alt="KinTime activity timer" width="300"> <img src="docs/screenshots/time-log-history.png" alt="KinTime day and week log history" width="300">
-
-The time-log screenshots demonstrate example entries on the Android 17 emulator. The earlier screen-time screenshots are from the initial 0.1.0 build.
-
-## Log an activity
-
-1. Open **Log**, enter what you are doing, and optionally add a project or category (for example, Study, Work, Exercise, or Family).
-2. Press **play** to start. Return and press **stop** to save the entry. Its start time is saved locally, so leaving the app or restarting it does not reset the timer. The timer follows the phone's clock and includes time spent away from the app.
-3. Use **Log time** to add an activity you already completed, choosing start/end dates and times.
-4. Use an entry's three-dot menu to **continue**, **edit**, or **delete** it. Only one timer can run at a time.
-
-History is grouped by week and day. Midnight-spanning entries are divided between days for totals. Manual entries may overlap, so their logged durations are added together rather than treated as automatic screen time. Log descriptions and projects are stored only on the phone and are not uploaded to Firebase. Upgrading from 0.1.0 preserves existing screen-time history with a Room database migration.
+Actual emulator screenshots: [Today](docs/screenshots/today-tracking.png), [app breakdown](docs/screenshots/app-breakdown.png), [Family setup](docs/screenshots/family-setup.png), [Tracking](docs/screenshots/tracking.png). See [verification results](docs/VERIFICATION.md).
 
 ## Build and install
 

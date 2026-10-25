@@ -19,8 +19,8 @@ android {
         applicationId = "app.kintime.family"
         minSdk = 35
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "FIREBASE_API_KEY", firebaseValue("apiKey"))
         buildConfigField("String", "FIREBASE_APP_ID", firebaseValue("applicationId"))

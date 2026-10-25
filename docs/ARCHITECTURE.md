@@ -21,12 +21,10 @@ Instagram/YouTube UI ─→ ShortVideoService ─→ VideoCounter ────�
 
 - `core/UsageTimeline.kt`: Android-independent interval calculator, with lock, shutdown, overlap, activity-union, and day-boundary tests.
 - `core/VideoCounter.kt`: Android-independent dwell/deduplication state machine.
-- `core/TimeLogMath.kt`: activity-log duration formatting, range clipping, date/DST boundary splitting, and manual-entry validation.
-- `ui/TimeLogScreen.kt`: local task/project timer and manual log editor, with weekly/day history, continue/edit/delete actions. Room persists a single running timer; a nullable unique `activeSlot` index prevents simultaneous active timers. No background polling service is needed to preserve the start time.
 - `tracking/UsageCollector.kt`: permission check, public event translation, bounded lookback, Room replacement transaction.
 - `tracking/ShortVideoService.kt`: optional system-managed accessibility service. Bounded tree traversal, viewer/identity recognition, in-memory fingerprints, lock/foreground checks, one-second sampling, and duration splitting at local midnight.
+- `data/Migrations.kt`: upgrades from schema 1 or 2 to schema 3 while preserving screen-time and short-video data. The obsolete manual-entry table is removed when upgrading schema 2.
 - `data/`: Room schema and observable preferences. `schemas/` contains exported database schemas for future migrations.
-- `data/Migrations.kt`: non-destructive schema 1 → 2 migration adding activity logs while retaining existing usage/video tables. A migration test validates the exported schemas, existing data, and the one-active-timer constraint.
 - `sync/FamilyRepository.kt`: optional Firebase initialization; user authentication; atomic family bootstrap; invite joining; listeners; idempotent summary upserts; deletion on pause/leave/sign-out. A mutex serialises upload with privacy deletion so a pending upload on this process cannot recreate just-deleted records.
 - `sync/SyncWorker.kt`: a unique, 15-minute periodic job; local collection works offline and failed cloud requests retry.
 - `ui/KinTimeRoot.kt`: Today, Family, and Tracking screens with separate accessibility disclosure.

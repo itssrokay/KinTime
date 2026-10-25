@@ -31,13 +31,10 @@ Automated tests establish calculation and permission-rule behavior. Only physica
 - Leave/sign out online; confirm shared data removal and loss of access. Attempt offline; confirm the app reports that cleanup needs retry.
 - Remember that other devices signed in to the same account can still upload if their sharing is enabled. Pause on each device when ending sharing entirely.
 
-## Activity logging
+## Upgrade checks
 
-- Open Log without Usage Access or Accessibility; add a description/project and start the timer.
-- Leave the app, lock the phone, reopen it, and confirm the start time was retained. Stop and confirm the completed entry and totals.
-- Add a manual entry, edit its times and title, continue it as a new timer, and delete it with confirmation.
-- Test midnight, a Sunday/Monday week boundary, and a daylight-saving time zone. Totals should preserve the original duration when split into days.
-- Upgrade an existing 0.1.0 installation to 0.2.0 using the same signing key, and confirm previous usage records are retained.
+- Update a 0.1.0 or 0.2.0 installation with the same signing key. Confirm that screen-time and short-video history are retained.
+- Confirm navigation contains Today, Family, and Tracking.
 
 ## Release readiness
 

@@ -20,7 +20,7 @@ class KinTimeApp : Application() {
 class AppContainer(val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val preferences = Preferences(app)
-    val database = Room.databaseBuilder(app, KinDatabase::class.java, "kintime.db").addMigrations(MIGRATION_1_2).build()
+    val database = Room.databaseBuilder(app, KinDatabase::class.java, "kintime.db").addMigrations(MIGRATION_1_3, MIGRATION_2_3).build()
     val dao = database.stats()
     val collector = UsageCollector(app, dao, preferences)
     val family = FamilyRepository(app, preferences, dao)

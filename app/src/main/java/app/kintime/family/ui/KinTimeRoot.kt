@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.kintime.family.DashboardModel
+import app.kintime.family.BuildConfig
 import app.kintime.family.data.*
 import app.kintime.family.sync.*
 import java.time.*
@@ -68,12 +69,13 @@ fun KinTimeRoot(model: DashboardModel, openSettings: (String) -> Unit) {
     val refreshing by model.refreshing.collectAsStateWithLifecycle()
     val localError by model.error.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { tab = tab.coerceIn(0, 2) }
     var disclosure by remember { mutableStateOf(false) }
     MaterialTheme(colorScheme = lightColorScheme(primary = Coral, onPrimary = Color.White, secondary = Ink,
         background = Paper, surface = Paper, onSurface = Ink, onBackground = Ink, outline = Color(0xFFD8DDD4))) {
         Scaffold(containerColor = Paper, bottomBar = {
             NavigationBar(containerColor = Paper, tonalElevation = 0.dp) {
-                listOf("Today" to Icons.Rounded.DonutLarge, "Log" to Icons.Rounded.Timer, "Family" to Icons.Rounded.PeopleOutline, "Tracking" to Icons.Rounded.Tune).forEachIndexed { i, item ->
+                listOf("Today" to Icons.Rounded.DonutLarge, "Family" to Icons.Rounded.PeopleOutline, "Tracking" to Icons.Rounded.Tune).forEachIndexed { i, item ->
                     NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = { Icon(item.second, null) }, label = { Text(item.first) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Ink, indicatorColor = Sage, selectedTextColor = Ink, unselectedIconColor = Muted))
                 }
@@ -96,9 +98,8 @@ fun KinTimeRoot(model: DashboardModel, openSettings: (String) -> Unit) {
                 }
                 when (tab) {
                     0 -> TodayScreen(prefs, hasAccess, day, apps, videos, week, selectedDay, refreshing,
-                        { model.selectedDay.value = it }, { model.refresh() }, { tab = 3 }, { model.label(it) })
-                    1 -> TimeLogScreen(model)
-                    2 -> FamilyScreen(model, prefs, family)
+                        { model.selectedDay.value = it }, { model.refresh() }, { tab = 2 }, { model.label(it) })
+                    1 -> FamilyScreen(model, prefs, family)
                     else -> TrackingScreen(model, prefs, hasAccess, family.configured, openSettings) { disclosure = true }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -326,8 +327,8 @@ private fun TodayScreen(prefs: PreferencesState, hasAccess: Boolean, day: UsageD
         Text("Phone owners can revoke access or uninstall the app. Missing or stale statistics do not mean zero usage. Secure Folder, work profiles, and browser short-video feeds are outside this first version.", fontSize = 11.sp, color = Muted, lineHeight = 18.sp)
         TextButton(onClick = { clear = true }) { Text("Delete local history") }
     }
-    Text("KINTIME 0.2 · MADE FOR YOUR FAMILY", fontSize = 10.sp, letterSpacing = 1.sp, color = Muted)
-    if (clear) AlertDialog(onDismissRequest = { clear = false }, title = { Text("Delete local history?") }, text = { Text("Deletes saved statistics and activity logs on this phone, including any running timer. Android may restore recent screen-time events on the next refresh. Previously shared cloud records are separate; turn off sharing to remove those.") },
+    Text("KINTIME ${BuildConfig.VERSION_NAME} · MADE FOR YOUR FAMILY", fontSize = 10.sp, letterSpacing = 1.sp, color = Muted)
+    if (clear) AlertDialog(onDismissRequest = { clear = false }, title = { Text("Delete local history?") }, text = { Text("Deletes saved statistics on this phone. Android may restore recent screen-time events on the next refresh. Previously shared cloud records are separate; turn off sharing to remove those.") },
         confirmButton = { TextButton(onClick = { clear = false; model.runAction { model.container.dao.clearAll() } }) { Text("Delete") } }, dismissButton = { TextButton(onClick = { clear = false }) { Text("Cancel") } })
 }
 

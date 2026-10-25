@@ -12,6 +12,7 @@ class OnboardingTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     @Test fun localBuildShowsHonestEmptyStateAndFirebaseSetup() {
         compose.onNodeWithText("kintime").assertIsDisplayed()
+        compose.onNodeWithText("Log", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("Family", useUnmergedTree = true).performClick()
         compose.onNodeWithText("Your family space is ready").assertIsDisplayed()
         compose.onNodeWithText("Tracking", useUnmergedTree = true).performClick()
