@@ -1,5 +1,22 @@
 # Verification — 25 October 2026
 
+## Version 0.3.0 — Steps
+
+- APK build passed: version 0.3.0, code 4, minimum API 35, target API 37. APK signature verified, using the same certificate as 0.2.1.
+- Android lint passed with **zero errors** (30 existing/dependency/convenience warnings).
+- **10 JVM tests passed** for screen-time calculations and short-video state transitions.
+- **9 Android tests passed** on Android 17 / API 37.0: three onboarding/setup checks, three Room migration checks, and three step repository checks. The separate Firebase integration test is skipped by the ordinary connected-test command.
+- Step tests cover consent and permission gates, optional background access, real zero versus absent records, source deletion, and disconnect/revoke behavior. Schema 3 → 4 retains existing usage/video data and adds daily step history; earlier migration tests remain green.
+- **14 Firestore rules tests passed**, including family-only step access, owner-only writes/deletes, valid bounded fields, rejecting stale overwrites, corrections that decrease totals, and one canonical person/day snapshot across devices.
+- **1 Android Firebase integration test passed** using local Auth/Firestore emulators and two accounts: screen-time sharing plus step opt-in, daily upload, retry without duplication, count correction, independent step opt-out, persisted cleanup retried with master sharing off, and family departure. No live Firebase project was created.
+- Installed the final APK on the Android 17 emulator. Opened Steps, accepted the in-app disclosure, and used the real Android Health Connect permission flow. It requested read Steps only, then successfully performed aggregate reads and displayed an honest missing reading for the empty emulator health store. No sample positive step totals were inserted for the screenshot.
+- Verified the optional system background-access prompt and the in-app steps privacy activity. The Android Health Connect rationale alias is registered and permission-protected. The Steps screenshot in the README is the actual emulator screen before connection.
+- Confirmed real Health Connect permissions were revoked after disconnecting and ending the emulator app process (Android defers self-revocation until it is safe to end the process). The manual activity timer/log screen remains absent.
+
+Commands: `./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:connectedDebugAndroidTest`; `npm run test:rules`; `npm run test:sync` (Firebase scripts run under Node 24.12.0).
+
+Samsung/Fitbit syncing, native phone sensor accuracy, physical Android 15 behavior, and live project deployment remain household-device checks; emulator tests do not establish these.
+
 ## Version 0.2.1
 
 - Removes the manual timer and logging screen, related code, and screenshots.

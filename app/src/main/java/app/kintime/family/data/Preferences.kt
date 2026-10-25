@@ -10,6 +10,8 @@ data class PreferencesState(
     val videoConsent: Boolean = false, val familyId: String = "", val lastSync: Long = 0,
     val collectorMessage: String = "Enable Usage Access to start", val detectorMessage: String = "Optional tracking is off",
     val detectorLastSeen: Long = 0, val goalMinutes: Int = 180,
+    val stepsEnabled: Boolean = false, val shareSteps: Boolean = false, val stepGoal: Int = 8000,
+    val stepCleanupPending: Boolean = false,
 )
 
 class Preferences(context: Context, namespace: String = "kintime") {
@@ -20,6 +22,8 @@ class Preferences(context: Context, namespace: String = "kintime") {
         prefs.getBoolean("videoConsent", false), prefs.getString("familyId", "") ?: "", prefs.getLong("lastSync", 0),
         prefs.getString("collector", "Enable Usage Access to start") ?: "", prefs.getString("detector", "Optional tracking is off") ?: "",
         prefs.getLong("detectorLastSeen", 0), prefs.getInt("goal", 180),
+        prefs.getBoolean("stepsEnabled", false), prefs.getBoolean("shareSteps", false), prefs.getInt("stepGoal", 8000),
+        prefs.getBoolean("stepCleanupPending", false),
     )
     private val mutable = MutableStateFlow(read())
     val state = mutable.asStateFlow()
@@ -29,7 +33,11 @@ class Preferences(context: Context, namespace: String = "kintime") {
     fun sharing(value: Boolean) { prefs.edit().putBoolean("sharing", value).apply(); mutable.value = read() }
     fun shareApps(value: Boolean) { prefs.edit().putBoolean("shareApps", value).apply(); mutable.value = read() }
     fun videoConsent(value: Boolean) { prefs.edit().putBoolean("videoConsent", value).apply(); mutable.value = read() }
-    fun family(id: String) { prefs.edit().putString("familyId", id).putLong("lastSync", 0).putBoolean("sharing", false).apply(); mutable.value = read() }
+    fun family(id: String) { prefs.edit().putString("familyId", id).putLong("lastSync", 0).putBoolean("sharing", false).putBoolean("shareSteps", false).putBoolean("stepCleanupPending", false).apply(); mutable.value = read() }
+    fun stepsEnabled(value: Boolean) { prefs.edit().putBoolean("stepsEnabled", value).apply(); mutable.value = read() }
+    fun shareSteps(value: Boolean) { prefs.edit().putBoolean("shareSteps", value).apply(); mutable.value = read() }
+    fun stepCleanupPending(value: Boolean) { prefs.edit().putBoolean("stepCleanupPending", value).apply(); mutable.value = read() }
+    fun stepGoal(value: Int) { prefs.edit().putInt("stepGoal", value.coerceIn(100, 100000)).apply(); mutable.value = read() }
     fun synced(at: Long) { prefs.edit().putLong("lastSync", at).apply(); mutable.value = read() }
     fun collector(message: String) { prefs.edit().putString("collector", message).apply(); mutable.value = read() }
     fun detector(message: String, seen: Long? = null) {

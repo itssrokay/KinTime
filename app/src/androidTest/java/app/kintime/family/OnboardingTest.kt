@@ -26,4 +26,11 @@ class OnboardingTest {
         compose.onNodeWithText("Not now").performClick()
         compose.onAllNodes(isToggleable()).onFirst().assertIsOff()
     }
+    @Test fun stepsHasSetupAndSeparateHealthDisclosure() {
+        compose.onNodeWithText("Steps", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Your step goal").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Choose where steps come from").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Step privacy").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Log", useUnmergedTree = true).assertDoesNotExist()
+    }
 }

@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val c = (applicationContext as KinTimeApp).container
-        return try { c.collector.collect(); c.family.sync(); Result.success() }
+        return try { c.collector.collect(); c.steps.refresh(inBackground = true); c.family.sync(); Result.success() }
         catch (e: CancellationException) { throw e }
         catch (_: Exception) { Result.retry() }
     }

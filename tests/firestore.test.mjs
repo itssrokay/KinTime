@@ -84,3 +84,31 @@ test('removing optional app breakdown preserves the rest of a summary', async ()
   await assertSucceeds(updateDoc(doc(db('alice'), path()), { apps: {} }));
   await assertFails(updateDoc(doc(db('alice'), path()), { apps: {}, views: -10 }));
 });
+
+const stepPath = (uid = 'alice') => `families/home/steps/${uid}_2026-10-25`;
+const stepData = (uid = 'alice', count = 2171, readAt = Date.now() - 2000) => ({ userId: uid, deviceId: device,
+  day: '2026-10-25', zoneId: 'Asia/Kolkata', count, readAt: Timestamp.fromMillis(readAt), updatedAt: serverTimestamp() });
+test('step totals are private to family and owned by their user', async () => {
+  await assertSucceeds(setDoc(doc(db('alice'), stepPath()), stepData()));
+  await assertFails(getDoc(doc(db('mallory'), stepPath())));
+  await assertFails(setDoc(doc(db('alice'), stepPath('bob')), stepData('bob')));
+  await setDoc(doc(db('bob'), 'families/home/members/bob'), member('Bob'));
+  await assertSucceeds(getDoc(doc(db('bob'), stepPath())));
+  await assertFails(updateDoc(doc(db('bob'), stepPath()), { count: 9999, updatedAt: serverTimestamp() }));
+});
+test('step snapshots reject invalid counts, extra fields and stale overwrites', async () => {
+  const at = Date.now() - 2000;
+  await setDoc(doc(db('alice'), stepPath()), stepData('alice', 2171, at));
+  await assertFails(setDoc(doc(db('alice'), stepPath()), stepData('alice', -1, at + 1)));
+  await assertFails(setDoc(doc(db('alice'), stepPath()), { ...stepData('alice', 2171, at + 1), rawHealthData: 'forbidden' }));
+  await assertFails(setDoc(doc(db('alice'), stepPath()), stepData('alice', 9000, at - 1)));
+  await assertSucceeds(setDoc(doc(db('alice'), stepPath()), stepData('alice', 2000, at + 1)));
+  await assertSucceeds(deleteDoc(doc(db('alice'), stepPath())));
+});
+test('another device updates one person-day step snapshot without duplicating counts', async () => {
+  const at = Date.now() - 2000;
+  await setDoc(doc(db('alice'), stepPath()), stepData('alice', 2171, at));
+  await assertSucceeds(setDoc(doc(db('alice'), stepPath()), { ...stepData('alice', 2200, at + 1), deviceId: '87654321-1234-1234-1234-123456789abc' }));
+  const snapshots = await getDocs(collection(db('alice'), 'families/home/steps'));
+  if (snapshots.size !== 1 || snapshots.docs[0].data().count !== 2200) throw new Error('Step snapshots duplicated or summed');
+});

@@ -19,12 +19,14 @@ import java.util.UUID
 
 data class FamilyMember(val uid: String, val name: String, val screenMillis: Long = 0,
                         val views: Long = 0, val shortMillis: Long = 0, val updatedAt: Long = 0,
-                        val devices: Int = 0, val apps: Map<String, Long> = emptyMap())
+                        val devices: Int = 0, val apps: Map<String, Long> = emptyMap(),
+                        val steps: Long? = null, val stepsReadAt: Long = 0)
 data class FamilyState(val configured: Boolean = false, val uid: String? = null, val email: String = "",
                        val familyName: String = "", val members: List<FamilyMember> = emptyList(),
                        val invite: String = "", val busy: Boolean = false, val error: String? = null)
 
-class FamilyRepository(context: Context, private val preferences: Preferences, private val dao: StatsDao, firebaseAppOverride: FirebaseApp? = null) {
+class FamilyRepository(context: Context, private val preferences: Preferences, private val dao: StatsDao,
+                       firebaseAppOverride: FirebaseApp? = null, private val stepsPermission: suspend () -> Boolean = { false }) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val auth: FirebaseAuth?
     private val store: FirebaseFirestore?
@@ -34,6 +36,7 @@ class FamilyRepository(context: Context, private val preferences: Preferences, p
     private val syncMutex = Mutex()
     private var memberDocs = emptyList<DocumentSnapshot>()
     private var summaries = emptyList<DocumentSnapshot>()
+    private var stepSummaries = emptyList<DocumentSnapshot>()
     private var listenedDay = ""
     private val authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
         mutable.update { it.copy(uid = firebaseAuth.currentUser?.uid, email = firebaseAuth.currentUser?.email.orEmpty()) }
@@ -57,7 +60,7 @@ class FamilyRepository(context: Context, private val preferences: Preferences, p
     private fun attach() {
         synchronized(listeners) {
             listeners.forEach { it.remove() }; listeners.clear()
-            memberDocs = emptyList(); summaries = emptyList()
+            memberDocs = emptyList(); summaries = emptyList(); stepSummaries = emptyList()
             mutable.update { it.copy(members = emptyList(), familyName = "", invite = "") }
             val id = preferences.state.value.familyId
             if (id.isBlank() || auth?.currentUser == null || store == null) return
@@ -74,15 +77,21 @@ class FamilyRepository(context: Context, private val preferences: Preferences, p
                 if (error == null) { summaries = docs?.documents.orEmpty(); publishMembers() }
                 else mutable.update { it.copy(error = "Could not read family statistics. Check deployed Firestore rules.") }
             }
+            listeners += family.collection("steps").whereEqualTo("day", listenedDay).addSnapshotListener { docs, error ->
+                if (error == null) { stepSummaries = docs?.documents.orEmpty(); publishMembers() }
+                else mutable.update { it.copy(error = "Step sharing needs the updated Firestore rules. See the Firebase setup guide.") }
+            }
         }
     }
     private fun publishMembers() {
         mutable.update { state -> state.copy(members = memberDocs.map { member ->
             val stats = summaries.filter { it.getString("userId") == member.id }
+            val step = stepSummaries.firstOrNull { it.getString("userId") == member.id }
             FamilyMember(member.id, member.getString("name") ?: "Family member",
                 stats.sumOf { it.getLong("screenMillis") ?: 0 }, stats.sumOf { it.getLong("views") ?: 0 },
                 stats.sumOf { it.getLong("shortMillis") ?: 0 }, stats.maxOfOrNull { it.getTimestamp("updatedAt")?.toDate()?.time ?: 0 } ?: 0, stats.size,
-                buildMap { stats.forEach { doc -> (doc.get("apps") as? Map<*, *>)?.forEach { (key, value) -> if (key is String && value is Number) put(key, (get(key) ?: 0L) + value.toLong()) } } })
+                buildMap { stats.forEach { doc -> (doc.get("apps") as? Map<*, *>)?.forEach { (key, value) -> if (key is String && value is Number) put(key, (get(key) ?: 0L) + value.toLong()) } } },
+                step?.getLong("count"), step?.getTimestamp("readAt")?.toDate()?.time ?: 0)
         }.sortedBy { it.name.lowercase() }) }
     }
     suspend fun authenticate(email: String, password: String, register: Boolean) = action {
@@ -146,12 +155,48 @@ class FamilyRepository(context: Context, private val preferences: Preferences, p
         }
         if (preferences.state.value.sharing) sync()
     }
+    suspend fun changeStepSharing(enabled: Boolean) = action {
+        require(preferences.state.value.familyId.isNotBlank()) { "Join a family first." }
+        if (enabled) require(stepsPermission()) { "Connect Health Connect and allow steps access first." }
+        preferences.shareSteps(enabled)
+        if (!enabled) preferences.stepCleanupPending(true)
+        if (enabled && preferences.state.value.sharing) sync()
+        else if (!enabled) syncMutex.withLock { deleteSharedSteps(onlyThisDevice = true) }
+    }
+    suspend fun disconnectSteps(disconnect: suspend () -> Unit) {
+        preferences.shareSteps(false)
+        preferences.stepCleanupPending(true)
+        // Local disconnection must still work in builds without Firebase.
+        if (store != null && auth?.currentUser != null && preferences.state.value.familyId.isNotBlank()) {
+            action { syncMutex.withLock { deleteSharedSteps(onlyThisDevice = true) } }
+        }
+        disconnect()
+    }
+    private suspend fun deleteSharedSteps(onlyThisDevice: Boolean = false) {
+        val id = preferences.state.value.familyId
+        val uid = auth?.currentUser?.uid ?: return
+        if (id.isBlank() || store == null) return
+        val docs = store.collection("families").document(id).collection("steps").whereEqualTo("userId", uid).get(Source.SERVER).await()
+        if (onlyThisDevice) removeDeviceStepSnapshots(docs.documents)
+        else docs.documents.chunked(400).forEach { chunk -> store.batch().apply { chunk.forEach { delete(it.reference) } }.commit().await() }
+        preferences.stepCleanupPending(false)
+    }
+    private suspend fun removeDeviceStepSnapshots(docs: List<DocumentSnapshot>) {
+        for (doc in docs.filter { it.getString("deviceId") == preferences.deviceId }) {
+            // The canonical snapshot may have moved to another device since the query.
+            store!!.runTransaction { transaction ->
+                val current = transaction.get(doc.reference)
+                if (current.getString("deviceId") == preferences.deviceId) transaction.delete(doc.reference)
+            }.await()
+        }
+    }
     private suspend fun deleteSharedStats() {
         val id = preferences.state.value.familyId
         val uid = auth?.currentUser?.uid ?: return
         if (id.isBlank()) return
         val docs = store!!.collection("families").document(id).collection("summaries").whereEqualTo("userId", uid).get(Source.SERVER).await()
         docs.documents.chunked(400).forEach { chunk -> store.batch().apply { chunk.forEach { delete(it.reference) } }.commit().await() }
+        deleteSharedSteps()
     }
     suspend fun leaveFamily() = action {
         preferences.sharing(false)
@@ -176,7 +221,10 @@ class FamilyRepository(context: Context, private val preferences: Preferences, p
     suspend fun sync() = syncMutex.withLock {
         val prefs = preferences.state.value
         val uid = auth?.currentUser?.uid ?: return@withLock
-        if (!prefs.sharing || prefs.familyId.isBlank() || store == null) return@withLock
+        if (prefs.familyId.isBlank() || store == null) return@withLock
+        // Retry an offline opt-out even while all sharing is paused, including after an app restart.
+        if (prefs.stepCleanupPending) deleteSharedSteps(onlyThisDevice = true)
+        if (!prefs.sharing) return@withLock
         val family = store.collection("families").document(prefs.familyId)
         val days = dao.days(LocalDate.now().minusDays(6).toString())
         val batch = store.batch()
@@ -191,6 +239,30 @@ class FamilyRepository(context: Context, private val preferences: Preferences, p
             batch.set(family.collection("summaries").document("${uid}_${preferences.deviceId}_${day.day}"), data)
         }
         batch.commit().await()
+        if (prefs.shareSteps) {
+            if (!stepsPermission()) {
+                preferences.shareSteps(false)
+                preferences.stepCleanupPending(true)
+                deleteSharedSteps(onlyThisDevice = true)
+            } else {
+                val steps = dao.stepDays(LocalDate.now().minusDays(6).toString())
+                for (day in steps) {
+                    val ref = family.collection("steps").document("${uid}_${day.day}")
+                    // One document per person/day, not per device. New readings may legitimately decrease.
+                    store.runTransaction { transaction ->
+                        val previous = transaction.get(ref)
+                        val previousRead = previous.getTimestamp("readAt")?.toDate()?.time ?: 0
+                        if (day.readAt >= previousRead) transaction.set(ref, mapOf(
+                            "userId" to uid, "deviceId" to preferences.deviceId, "day" to day.day, "zoneId" to day.zoneId,
+                            "count" to day.count, "readAt" to Timestamp(Date(day.readAt)), "updatedAt" to FieldValue.serverTimestamp()))
+                    }.await()
+                }
+                // Deletions/corrections in Health Connect must remove previously shared readings too.
+                val validDays = steps.map { it.day }.toSet()
+                val old = family.collection("steps").whereEqualTo("userId", uid).get(Source.SERVER).await()
+                removeDeviceStepSnapshots(old.documents.filter { it.getString("day") !in validDays })
+            }
+        }
         preferences.synced(System.currentTimeMillis())
     }
     private suspend fun action(block: suspend () -> Unit) {

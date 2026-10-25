@@ -69,13 +69,13 @@ fun KinTimeRoot(model: DashboardModel, openSettings: (String) -> Unit) {
     val refreshing by model.refreshing.collectAsStateWithLifecycle()
     val localError by model.error.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) { tab = tab.coerceIn(0, 2) }
+    LaunchedEffect(Unit) { tab = tab.coerceIn(0, 3) }
     var disclosure by remember { mutableStateOf(false) }
     MaterialTheme(colorScheme = lightColorScheme(primary = Coral, onPrimary = Color.White, secondary = Ink,
         background = Paper, surface = Paper, onSurface = Ink, onBackground = Ink, outline = Color(0xFFD8DDD4))) {
         Scaffold(containerColor = Paper, bottomBar = {
             NavigationBar(containerColor = Paper, tonalElevation = 0.dp) {
-                listOf("Today" to Icons.Rounded.DonutLarge, "Family" to Icons.Rounded.PeopleOutline, "Tracking" to Icons.Rounded.Tune).forEachIndexed { i, item ->
+                listOf("Today" to Icons.Rounded.DonutLarge, "Steps" to Icons.Rounded.DirectionsWalk, "Family" to Icons.Rounded.PeopleOutline, "Tracking" to Icons.Rounded.Tune).forEachIndexed { i, item ->
                     NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = { Icon(item.second, null) }, label = { Text(item.first) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Ink, indicatorColor = Sage, selectedTextColor = Ink, unselectedIconColor = Muted))
                 }
@@ -98,8 +98,9 @@ fun KinTimeRoot(model: DashboardModel, openSettings: (String) -> Unit) {
                 }
                 when (tab) {
                     0 -> TodayScreen(prefs, hasAccess, day, apps, videos, week, selectedDay, refreshing,
-                        { model.selectedDay.value = it }, { model.refresh() }, { tab = 2 }, { model.label(it) })
-                    1 -> FamilyScreen(model, prefs, family)
+                        { model.selectedDay.value = it }, { model.refresh() }, { tab = 3 }, { model.label(it) })
+                    1 -> StepsScreen(model, openSettings)
+                    2 -> FamilyScreen(model, prefs, family)
                     else -> TrackingScreen(model, prefs, hasAccess, family.configured, openSettings) { disclosure = true }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -205,6 +206,7 @@ private fun TodayScreen(prefs: PreferencesState, hasAccess: Boolean, day: UsageD
     var familyName by rememberSaveable { mutableStateOf("") }
     var invite by rememberSaveable { mutableStateOf("") }
     var leave by remember { mutableStateOf(false) }
+    var rankSteps by rememberSaveable { mutableStateOf(false) }
     Title("Better, together", state.familyName.ifBlank { "Make room for\nfamily time." }, "A shared view of your habits. A little encouragement for everyone.")
     if (!state.configured) {
         EmptyCard(Icons.Rounded.PeopleOutline, "Your family space is ready", "Local tracking works now. Connect a Firebase project to enable accounts, invitations, and shared statistics.")
@@ -241,19 +243,26 @@ private fun TodayScreen(prefs: PreferencesState, hasAccess: Boolean, day: UsageD
             Text("TODAY’S FAMILY SNAPSHOT", fontSize = 10.sp, color = Muted, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             IconButton(onClick = { model.refresh() }) { Icon(Icons.Rounded.Refresh, "Refresh family") }
         }
-        state.members.forEach { member ->
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(rankSteps, { rankSteps = true }, label = { Text("Steps leaderboard") })
+            FilterChip(!rankSteps, { rankSteps = false }, label = { Text("Family overview") })
+        }
+        if (rankSteps) Text("Latest shared reading per person. Phone and watch totals are not added again. A blank value means no shared reading.", fontSize = 11.sp, color = Muted, lineHeight = 17.sp)
+        val orderedMembers = if (rankSteps) state.members.sortedWith(compareByDescending<FamilyMember> { it.steps ?: -1L }.thenBy { it.name }) else state.members
+        orderedMembers.forEachIndexed { rank, member ->
             var expanded by remember(member.uid) { mutableStateOf(false) }
             Surface(shape = RoundedCornerShape(24.dp), color = Color.White) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(42.dp).background(Sage, CircleShape), contentAlignment = Alignment.Center) { Text(member.name.take(1).uppercase(), fontWeight = FontWeight.Bold) }
                         Column(Modifier.weight(1f)) {
-                            Text(member.name + if (member.uid == state.uid) " (you)" else "", fontWeight = FontWeight.SemiBold)
-                            Text(ago(member.updatedAt), fontSize = 11.sp, color = Muted)
+                            Text((if (rankSteps) "${rank + 1}. " else "") + member.name + if (member.uid == state.uid) " (you)" else "", fontWeight = FontWeight.SemiBold)
+                            Text(ago(if (rankSteps) member.stepsReadAt else member.updatedAt), fontSize = 11.sp, color = Muted)
                         }
-                        Text(if (member.devices == 0) "—" else duration(member.screenMillis), fontSize = 24.sp, fontFamily = FontFamily.Serif)
+                        Text(if (rankSteps) member.steps?.let { java.text.NumberFormat.getIntegerInstance().format(it) } ?: "—" else if (member.devices == 0) "—" else duration(member.screenMillis), fontSize = 24.sp, fontFamily = FontFamily.Serif)
                     }
                     Text(if (member.devices == 0) "No shared data for today" else "${member.views} estimated short videos · ${duration(member.shortMillis)} · ${member.devices} device(s)", fontSize = 12.sp, color = Muted)
+                    Text(member.steps?.let { "${java.text.NumberFormat.getIntegerInstance().format(it)} steps · ${ago(member.stepsReadAt)}" } ?: "Steps are not shared for today", fontSize = 12.sp, color = Muted)
                     if (member.apps.isNotEmpty()) {
                         TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide app breakdown" else "View app breakdown") }
                         if (expanded) member.apps.entries.sortedByDescending { it.value }.take(10).forEach { entry ->
@@ -269,6 +278,8 @@ private fun TodayScreen(prefs: PreferencesState, hasAccess: Boolean, day: UsageD
         if (state.members.isEmpty()) Text("Loading your family…", color = Muted)
         Panel {
             ToggleRow("Share my daily totals", "Screen time and short-video estimates", prefs.sharing, !state.busy) { model.runAction { repo.changeSharing(it) } }
+            ToggleRow("Share steps with family", "Optional · daily step total and reading time", prefs.shareSteps, !state.busy && prefs.sharing) { model.runAction { repo.changeStepSharing(it) } }
+            Text("Step sharing needs Health Connect access. Only one latest reading is shown per person, even with multiple devices. Turning it off removes this device's previously shared step snapshots when online.", fontSize = 11.sp, color = Muted, lineHeight = 17.sp)
             Text("Turning sharing off also removes your previously shared statistics when the request completes online.", fontSize = 11.sp, color = Muted, lineHeight = 17.sp)
             OutlinedButton(onClick = { model.runAction { repo.createInvite() } }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Rounded.PersonAddAlt, null, Modifier.size(17.dp)); Spacer(Modifier.width(8.dp)); Text("Invite a family member") }
             if (state.invite.isNotBlank()) {
@@ -328,7 +339,7 @@ private fun TodayScreen(prefs: PreferencesState, hasAccess: Boolean, day: UsageD
         TextButton(onClick = { clear = true }) { Text("Delete local history") }
     }
     Text("KINTIME ${BuildConfig.VERSION_NAME} · MADE FOR YOUR FAMILY", fontSize = 10.sp, letterSpacing = 1.sp, color = Muted)
-    if (clear) AlertDialog(onDismissRequest = { clear = false }, title = { Text("Delete local history?") }, text = { Text("Deletes saved statistics on this phone. Android may restore recent screen-time events on the next refresh. Previously shared cloud records are separate; turn off sharing to remove those.") },
+    if (clear) AlertDialog(onDismissRequest = { clear = false }, title = { Text("Delete local history?") }, text = { Text("Deletes saved screen-time, short-video, and step statistics on this phone. Recent Android events and connected Health Connect totals may be imported again on refresh. Previously shared cloud records are separate; turn off sharing to remove those.") },
         confirmButton = { TextButton(onClick = { clear = false; model.runAction { model.container.dao.clearAll() } }) { Text("Delete") } }, dismissButton = { TextButton(onClick = { clear = false }) { Text("Cancel") } })
 }
 

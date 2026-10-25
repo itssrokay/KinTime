@@ -41,7 +41,7 @@ class FamilySyncTest {
         val database = Room.inMemoryDatabaseBuilder(context, KinDatabase::class.java).build()
         val alicePrefs = Preferences(context, "test-alice-$testId").apply { name("Alice") }
         val bobPrefs = Preferences(context, "test-bob-$testId").apply { name("Bob") }
-        val alice = FamilyRepository(context, alicePrefs, database.stats(), aliceApp)
+        val alice = FamilyRepository(context, alicePrefs, database.stats(), aliceApp, stepsPermission = { true })
         val bob = FamilyRepository(context, bobPrefs, database.stats(), bobApp)
         try {
             alice.authenticate("alice-$testId@example.com", "test-password-123", true)
@@ -68,6 +68,31 @@ class FamilySyncTest {
             assertEquals(1L, summary.get(Source.SERVER).await().getLong("views"))
             alice.sync() // Retrying replaces the same per-device/day record.
             assertEquals(1, family.collection("summaries").get(Source.SERVER).await().size())
+            database.stats().putSteps(StepDay(today, "Asia/Kolkata", 2171, System.currentTimeMillis()))
+            alice.changeStepSharing(true)
+            assertNull(alice.state.value.error)
+            val steps = family.collection("steps").document("${uid}_$today")
+            assertEquals(2171L, steps.get(Source.SERVER).await().getLong("count"))
+            alice.sync()
+            assertEquals(1, family.collection("steps").get(Source.SERVER).await().size())
+            // A newer correction replaces the total rather than accumulating it.
+            database.stats().putSteps(StepDay(today, "Asia/Kolkata", 2000, System.currentTimeMillis()))
+            alice.sync()
+            assertEquals(2000L, steps.get(Source.SERVER).await().getLong("count"))
+            alice.changeStepSharing(false)
+            assertNull(alice.state.value.error)
+            assertFalse(steps.get(Source.SERVER).await().exists())
+            assertTrue(summary.get(Source.SERVER).await().exists())
+            alice.changeStepSharing(true)
+            assertTrue(steps.get(Source.SERVER).await().exists())
+            // A persisted offline opt-out is retried even when master sharing is paused.
+            alicePrefs.shareSteps(false)
+            alicePrefs.stepCleanupPending(true)
+            alicePrefs.sharing(false)
+            alice.sync()
+            assertFalse(steps.get(Source.SERVER).await().exists())
+            assertFalse(alicePrefs.state.value.stepCleanupPending)
+            assertTrue(summary.get(Source.SERVER).await().exists())
             alice.changeSharing(false)
             assertNull(alice.state.value.error)
             assertFalse(summary.get(Source.SERVER).await().exists())

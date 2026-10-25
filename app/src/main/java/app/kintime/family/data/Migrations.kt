@@ -12,3 +12,9 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL("DROP TABLE IF EXISTS `time_entries`")
     }
 }
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `step_days` (`day` TEXT NOT NULL, `zoneId` TEXT NOT NULL, `count` INTEGER NOT NULL, `readAt` INTEGER NOT NULL, PRIMARY KEY(`day`))")
+    }
+}

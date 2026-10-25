@@ -39,3 +39,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 Use Firebase's usage and budget controls for your project. No Firebase resources have been provisioned or deployed by this repository. The Family tab explicitly reports an unconfigured build until all three client configuration values are present.
 
 Official references: [Firebase Android setup](https://firebase.google.com/docs/android/setup), [Email/Password authentication](https://firebase.google.com/docs/auth/android/password-auth), [Firestore rules](https://firebase.google.com/docs/firestore/security/rules-conditions), [emulator rules testing](https://firebase.google.com/docs/rules/unit-tests).
+
+## Updating for steps (0.3.0+)
+
+Deploy the latest `firestore.rules` before using family step sharing. These add a separate family-private Steps collection. Open Family and enable both daily sharing and the separate Steps sharing toggle. Local Health Connect steps do not need Firebase.

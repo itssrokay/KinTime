@@ -5,6 +5,7 @@
 ```text
 Android UsageStatsManager ─→ UsageCollector ─→ UsageTimeline ─→ Room
 Instagram/YouTube UI ─→ ShortVideoService ─→ VideoCounter ─────→ Room
+Health Connect ───────→ StepsRepository (daily aggregate) ───→ Room
                                                                │
                             Compose ← Flow ← Room DAO           │
                                                                │ explicit sharing
@@ -23,11 +24,12 @@ Instagram/YouTube UI ─→ ShortVideoService ─→ VideoCounter ────�
 - `core/VideoCounter.kt`: Android-independent dwell/deduplication state machine.
 - `tracking/UsageCollector.kt`: permission check, public event translation, bounded lookback, Room replacement transaction.
 - `tracking/ShortVideoService.kt`: optional system-managed accessibility service. Bounded tree traversal, viewer/identity recognition, in-memory fingerprints, lock/foreground checks, one-second sampling, and duration splitting at local midnight.
-- `data/Migrations.kt`: upgrades from schema 1 or 2 to schema 3 while preserving screen-time and short-video data. The obsolete manual-entry table is removed when upgrading schema 2.
+- `steps/`: Health Connect read-only aggregate source, explicit consent/permission gates, optional background access, and Room daily step cache.
+- `data/Migrations.kt`: upgrades from schema 1 or 2 to schema 3 while preserving screen-time and short-video data. The obsolete manual-entry table is removed when upgrading schema 2. Schema 3 → 4 adds step history without changing those records.
 - `data/`: Room schema and observable preferences. `schemas/` contains exported database schemas for future migrations.
 - `sync/FamilyRepository.kt`: optional Firebase initialization; user authentication; atomic family bootstrap; invite joining; listeners; idempotent summary upserts; deletion on pause/leave/sign-out. A mutex serialises upload with privacy deletion so a pending upload on this process cannot recreate just-deleted records.
 - `sync/SyncWorker.kt`: a unique, 15-minute periodic job; local collection works offline and failed cloud requests retry.
-- `ui/KinTimeRoot.kt`: Today, Family, and Tracking screens with separate accessibility disclosure.
+- `ui/KinTimeRoot.kt`: Today, Steps, Family, and Tracking screens with separate accessibility and Health Connect disclosures.
 - `firestore.rules`: database-enforced membership, identity ownership, server timestamps, bounded fields, invite expiry, and no invite enumeration.
 - `FamilySyncTest`: two independently authenticated Android SDK clients against local Auth/Firestore emulators; exercises creating/joining a family, idempotent upload, pause cleanup, and departure. Enabled explicitly by `npm run test:sync`; ordinary UI tests skip this emulator-dependent test.
 
@@ -36,12 +38,13 @@ Instagram/YouTube UI ─→ ShortVideoService ─→ VideoCounter ────�
 ```text
 families/{randomFamilyId}                  name, ownerUid, createdAt
   members/{authUid}                        name, joinedAt, inviteCode
+  steps/{authUid}_{date}                  latest daily step count, device, zone, read/upload times
   summaries/{authUid}_{deviceUuid}_{date}   bounded daily totals, optional app map,
                                           source/upload timestamps, zone, detector version
 invites/{128bitRandomCode}                 familyId, createdBy, createdAt, expiresAt
 ```
 
-Each device replaces its daily document on retry rather than incrementing remote counters. This avoids duplicate uploads. Family cards add device totals. The database is private by default and has no general write rule. Own-summary deletion remains permitted after departure so a member can clean up their records. A missing or expired invitation cannot create membership. The creator's first membership is allowed only in the same atomic batch that creates the family.
+Each device replaces its daily document on retry rather than incrementing remote counters. This avoids duplicate uploads. Family cards add device screen-time/short-video totals; steps use one latest snapshot per person/day. The database is private by default and has no general write rule. Own-summary deletion remains permitted after departure so a member can clean up their records. A missing or expired invitation cannot create membership. The creator's first membership is allowed only in the same atomic batch that creates the family.
 
 ## Documented platform constraints
 
@@ -59,3 +62,5 @@ Each device replaces its daily document on retry rather than incrementing remote
 ## Deliberate first-version scope
 
 This is an opt-in household prototype. There is no blocking of other apps, anti-uninstall behavior, hidden tracking, remote permission enabling, root requirement, or continuous screen recording. No live Firebase project is configured in the repository. Production release also needs account deletion, retention policy, release signing/update strategy, invitation management/revocation, and device-level reliability work.
+
+Step sharing uses `families/{familyId}/steps/{uid}_{date}`: one canonical reading per person/date. Transactions reject stale overwrites; corrections replace totals rather than adding them. Raw health records are not uploaded. The Steps sharing toggle is separate from general family sharing. See `STEPS_INTEGRATION.md`.
